@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string>
 
 /* ******************************************************************
  ALTERNATING BIT AND GO-BACK-N NETWORK EMULATOR: VERSION 1.1  J.F.Kurose
@@ -59,27 +58,33 @@ struct receiverB
 
 A_output(message) struct msg message;
 {
-  printf("A is called with %s \n", message.data);
+  printf("A_output is called with %s \n", message.data);
   if (A.last_ack_received)
   {
-    // set the seq num of A
-    A.waiting_for = 1 - A.waiting_for;
 
     // create the package to send
     struct pkt package_to_send;
     package_to_send.seqnum = A.waiting_for;
 
     // move in the data
-    memmove(package_to_send.payload, message.data, 20);
+    for (int i = 0; i < 20; i++)
+    {
+      package_to_send.payload[i] = message.data[i];
+    }
 
     // send the data
     tolayer3(0, package_to_send);
     starttimer(0, A.expected_RTT);
 
+    // set the seq num of A
+    A.waiting_for = 1 - A.waiting_for;
+
     // update the last data sent
     A.package_just_sent = package_to_send;
 
     A.last_ack_received = 0;
+
+    printf("A_output has sent the package with seqNum = %d \n", package_to_send.seqnum);
   }
   else
   {
@@ -90,16 +95,45 @@ A_output(message) struct msg message;
 B_output(message) /* need be completed only for extra credit */
     struct msg message;
 {
+  printf("B_output is called \n");
 }
 
 /* called from layer 3, when a packet arrives for layer 4 */
 A_input(packet) struct pkt packet;
 {
+  printf("A_input is called with acknum=%d    =>   ", packet.acknum);
+
+  if (packet.acknum != A.waiting_for)
+  {
+    printf("ACK Miss \n");
+    return;
+  }
+
+  if (A.last_ack_received)
+  {
+    printf("A has already received ACK.\n");
+    return;
+  }
+
+  printf("Good ACK \n");
+  stoptimer(0);
+  A.last_ack_received = 1;
 }
 
 /* called when A's timer goes off */
 A_timerinterrupt()
 {
+  printf("A timeout => ");
+  if (A.last_ack_received)
+  {
+    printf("A has received the ack \n");
+  }
+  else
+  {
+    printf("A reseent the packet with sqNum = %d \n", A.package_just_sent.seqnum);
+    tolayer3(0, A.package_just_sent);
+    starttimer(0, A.expected_RTT);
+  }
 }
 
 /* the following routine will be called once (only) before any other */
@@ -118,8 +152,27 @@ A_init()
 /* Note that with simplex transfer from a-to-B, there is no B_output() */
 
 /* called from layer 3, when a packet arrives for layer 4 at B*/
+
+ack(int ackNum)
+{
+  struct pkt packet;
+  packet.acknum = B.waiting_for;
+  tolayer3(1, packet);
+}
+
 B_input(packet) struct pkt packet;
 {
+  printf("B_input init called with %s   =>   ", packet.payload);
+  if (packet.seqnum != B.waiting_for)
+  {
+    printf("Wrong seqNum %d", packet.seqnum);
+    ack(B.waiting_for);
+  }
+
+  printf("Good packet.\n");
+  B.waiting_for = 1 - B.waiting_for;
+  ack(B.waiting_for);
+  tolayer5(1, packet.payload);
 }
 
 /* called when B's timer goes off */
