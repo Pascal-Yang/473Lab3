@@ -37,15 +37,25 @@ struct pkt
   char payload[20];
 };
 
-struct A_status
-{
-  int waitingFor;
-  int
-}
-
 /********* STUDENTS WRITE THE NEXT SEVEN ROUTINES *********/
 
 /* called from layer 5, passed the data to be sent to other side */
+
+struct senderA
+{
+  int waiting_for;
+  int last_ack_received;
+  struct pkt package_just_sent;
+  float expected_RTT;
+} A;
+
+struct receiverB
+{
+  int waiting_for;
+  int current_state;
+  struct pkt package_just_sent;
+} B;
+
 A_output(message) struct msg message;
 {
 }
@@ -69,6 +79,13 @@ A_timerinterrupt()
 /* entity A routines are called. You can use it to do any initialization */
 A_init()
 {
+  printf("A init called");
+
+  A.waiting_for = 0;
+  A.expected_RTT = 15;
+  A.last_ack_received = 1;
+
+  printf("A init finished");
 }
 
 /* Note that with simplex transfer from a-to-B, there is no B_output() */
@@ -87,6 +104,11 @@ B_timerinterrupt()
 /* entity B routines are called. You can use it to do any initialization */
 B_init()
 {
+  printf("B init called");
+
+  B.waiting_for = 0;
+
+  printf("B init finished");
 }
 
 /*****************************************************************
