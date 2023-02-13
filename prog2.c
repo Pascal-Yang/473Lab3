@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
 
 /* ******************************************************************
  ALTERNATING BIT AND GO-BACK-N NETWORK EMULATOR: VERSION 1.1  J.F.Kurose
@@ -58,6 +59,32 @@ struct receiverB
 
 A_output(message) struct msg message;
 {
+  printf("A is called with %s \n", message.data);
+  if (A.last_ack_received)
+  {
+    // set the seq num of A
+    A.waiting_for = 1 - A.waiting_for;
+
+    // create the package to send
+    struct pkt package_to_send;
+    package_to_send.seqnum = A.waiting_for;
+
+    // move in the data
+    memmove(package_to_send.payload, message.data, 20);
+
+    // send the data
+    tolayer3(0, package_to_send);
+    starttimer(0, A.expected_RTT);
+
+    // update the last data sent
+    A.package_just_sent = package_to_send;
+
+    A.last_ack_received = 0;
+  }
+  else
+  {
+    printf("A is still waiting for ACK %d", A.waiting_for);
+  }
 }
 
 B_output(message) /* need be completed only for extra credit */
