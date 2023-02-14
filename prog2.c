@@ -56,6 +56,18 @@ struct receiverB
   struct pkt package_just_sent;
 } B;
 
+int getCheckSum(struct pkt packet)
+{
+  int checkSum = 0;
+  checkSum += packet.acknum + packet.seqnum;
+  for (int i = 0; i < 20; i++)
+  {
+    checkSum += packet.payload[i];
+  }
+  // printf("Encoded packet seq = %d; ack = %d; checkSum = %d \n", packet.seqnum, packet.acknum, checkSum);
+  return checkSum;
+}
+
 A_output(message) struct msg message;
 {
   printf("A_output is called with %s \n", message.data);
@@ -64,6 +76,8 @@ A_output(message) struct msg message;
 
     // create the package to send
     struct pkt package_to_send;
+
+    // set seq Num of the package
     package_to_send.seqnum = A.waiting_for;
 
     // move in the data
@@ -72,23 +86,27 @@ A_output(message) struct msg message;
       package_to_send.payload[i] = message.data[i];
     }
 
+    // get and set the checksum
+    package_to_send.checksum = getCheckSum(package_to_send);
+
     // send the data
     tolayer3(0, package_to_send);
     starttimer(0, A.expected_RTT);
 
-    // set the seq num of A
+    // set wait for the ack of the next packet
     A.waiting_for = 1 - A.waiting_for;
 
     // update the last data sent
     A.package_just_sent = package_to_send;
 
+    // now A is waiting for the ack
     A.last_ack_received = 0;
 
     printf("A_output has sent the package with seqNum = %d \n", package_to_send.seqnum);
   }
   else
   {
-    printf("A is still waiting for ACK %d", A.waiting_for);
+    printf("A is still waiting for ACK %d \n", A.waiting_for);
   }
 }
 
@@ -102,6 +120,12 @@ B_output(message) /* need be completed only for extra credit */
 A_input(packet) struct pkt packet;
 {
   printf("A_input is called with acknum=%d    =>   ", packet.acknum);
+
+  if (packet.checksum != getCheckSum(packet))
+  {
+    printf("Checksum miss. Expected: %d \n. Received: %d", getCheckSum(packet), packet.checksum);
+    return;
+  }
 
   if (packet.acknum != A.waiting_for)
   {
@@ -157,16 +181,26 @@ ack(int ackNum)
 {
   struct pkt packet;
   packet.acknum = B.waiting_for;
+  packet.checksum = getCheckSum(packet);
   tolayer3(1, packet);
 }
 
 B_input(packet) struct pkt packet;
 {
-  printf("B_input init called with %s   =>   ", packet.payload);
+  printf("B_input called with %s   =>   ", packet.payload);
+
+  if (packet.checksum != getCheckSum(packet))
+  {
+    printf("Checksum does not match. \n", packet.seqnum);
+    ack(B.waiting_for);
+    return;
+  }
+
   if (packet.seqnum != B.waiting_for)
   {
-    printf("Wrong seqNum %d", packet.seqnum);
+    printf("Wrong seqNum %d \n", packet.seqnum);
     ack(B.waiting_for);
+    return;
   }
 
   printf("Good packet.\n");
